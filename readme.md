@@ -30,7 +30,7 @@ If you plan to reproduce, modify, or extend the system, the following informatio
 
 ### Hardware
 
-* **Computer Model**: ASUS TUF GAMING FA507RM (华硕天选 3，中国版)
+* **Computer Model**: ASUS TUF GAMING FA507RM (华硕天选3，中国版)
 * **CPU**: AMD Ryzen 7 6000 Series
 * **GPU**: NVIDIA RTX 3060 Laptop (6GB VRAM)
 * **Memory**: 16GB DDR4
@@ -207,7 +207,7 @@ Planned improvements include:
 
 ### 硬件环境
 
-* **计算机型号**：ASUS TUF GAMING FA507RM（华硕天选 3，中国版）
+* **计算机型号**：ASUS TUF GAMING FA507RM（华硕天选3，中国版）
 * **处理器（CPU）**：AMD Ryzen 7 6000 系列
 * **显卡（GPU）**：NVIDIA RTX 3060 Laptop（6GB 显存）
 * **内存**：16GB DDR4
