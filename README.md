@@ -1,3 +1,39 @@
+# ❗IMPORTANT❗
+
+## Main part and src package still developing. DO NOT USE THIS. PLEASE USE loaders.py
+
+## 主函数部分和src包仍在开发。请不要使用。请使用loaders.py。
+
+This project uses the Qwen2.5 model provided by Alibaba Cloud.
+
+- Model: Qwen2.5
+- License: Qwen License (by Alibaba Cloud)
+- This repository's source code is licensed under the MIT License.
+- The model weights are NOT covered by the MIT License.
+
+本项目使用了阿里云发布的通义千问 Qwen2.5 模型。
+
+- 项目代码采用 MIT License
+- 模型权重遵循阿里云 Qwen 模型的原始许可证
+- 本仓库不重新分发模型权重
+
+During evaluation, this project uses publicly available academic papers
+as example documents to test the effectiveness of the RAG pipeline on
+long-context retrieval and generation.
+
+This includes the AlphaGo paper published by the DeepMind team, used solely
+for experimental and demonstration purposes. All copyrights remain with
+the original authors and publishers. This repository does not redistribute
+the original paper.
+
+本项目在测试阶段使用了公开发表的学术论文作为示例文档，
+用于验证 RAG（Retrieval-Augmented Generation）系统在长文档理解、
+检索与生成方面的效果。
+
+测试文档包括 DeepMind 团队公开发表的 AlphaGo 相关论文（仅用于实验与演示目的）。
+论文版权归原作者及出版方所有，本项目不重新分发原始论文内容。
+
+
 # Evidence-Based RAG Decision System
 
 **基于证据的 RAG 文本决策系统**
