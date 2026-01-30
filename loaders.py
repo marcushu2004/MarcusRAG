@@ -4,9 +4,6 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sqlalchemy.testing.suite.test_reflection import metadata
-
-# from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # check the path
 print("Please save your documents that you want to read in 'data/pdfs' path")
@@ -35,13 +32,6 @@ for file in p.glob("*.pdf"):
 # Chunk: pages -> chunks
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap= 150)
 chunks = splitter.split_documents(docs)
-# Test data full or broken
-# print(len(docs))
-# print(len(chunks))
-# print(chunks[0].page_content)
-# print(chunks[0].metadata)
-# print(chunks[1].page_content[-200:])
-# print(chunks[2].page_content[:200])
 
 # HuggingFaceEmbeddings 知道怎么把 text -> vector（维度固定）
 # Chroma.from_documents 调 embedding.embed_documents() 把向量 + metadata + text 存起来
@@ -65,18 +55,22 @@ def format_context(docs) -> str:
     return "\n\n".join(blocks)
 
 retriever = vectorstore.as_retriever(search_type="mmr", search_kwargs={"k":4, "fetch_k":20})
+
+# This is the Question that you want to ask. You can change it.
+# 这部分是你想要问的问题。你可以修改它。
 question = "How is the policy network trained in AlphaGo?"
+
 docs = retriever.invoke(question)
 context = format_context(docs)
+
+# This part is the description that you want to give the AI. You can change the style that you want.
+# 这部分是给AI的描述。你可以根据你喜欢的风格来修改。
 prompt_str = f"You are a assistant. Answer the questions ONLY using the context. If you can not find the answer. Use citations (page numbers) in Sources.,{context},{question}"
 
-
-# for docs in results:
-#     print(docs.metadata["page"])
-#     print(docs.metadata["source"])
-#     print(docs.page_content[:200])
-
+# This is the model, you can change it that you want. Now is Alibaba Qianwen model.
+# 这部分是传入的模型，你可以根据需要来修改。目前采用阿里千问模型。
 llm = ChatOllama(model="qwen2.5:3b")
+
 print(len(docs))
 resp = llm.invoke(prompt_str)
 
