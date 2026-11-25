@@ -35,8 +35,22 @@ def _common_parser() -> argparse.ArgumentParser:
         default=None,
         help="lexical re-rank: share of the first-stage score kept (0..1)",
     )
-    common.add_argument("--llm-backend", choices=["ollama", "fake"], default=None)
+    common.add_argument(
+        "--llm-backend",
+        choices=["ollama", "openai", "openai-compatible", "compatible", "fake"],
+        default=None,
+    )
     common.add_argument("--llm-model", default=None)
+    common.add_argument(
+        "--llm-base-url",
+        default=None,
+        help="chat API base URL (ollama: http://127.0.0.1:11434, openai: .../v1)",
+    )
+    common.add_argument(
+        "--llm-api-key",
+        default=None,
+        help="API key for --llm-backend openai; prefer the MARCUSRAG_API_KEY env var",
+    )
     common.add_argument("--json", action="store_true", dest="as_json", help="machine readable output")
     return common
 
@@ -92,6 +106,8 @@ def _settings_from_args(args: argparse.Namespace) -> Settings:
         "rerank_base_weight": args.rerank_base_weight,
         "llm_backend": args.llm_backend,
         "llm_model": args.llm_model,
+        "llm_base_url": args.llm_base_url,
+        "llm_api_key": args.llm_api_key,
     }
     return load_settings(args.config, **overrides)
 
@@ -210,7 +226,7 @@ def _cmd_eval(args: argparse.Namespace) -> int:
     if args.end_to_end:
         from .llm import build_llm
 
-        llm = build_llm(settings.llm_backend, settings.llm_model)
+        llm = build_llm(settings)
 
     report = evaluate(settings, args.evalset, llm=llm, k=args.k)
     if args.output:

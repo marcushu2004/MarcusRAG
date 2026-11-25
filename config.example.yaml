@@ -35,9 +35,13 @@ rerank_model: BAAI/bge-reranker-base      # only for rerank=cross-encoder
 rerank_base_weight: 0.7        # 0 = pure rerank score, 1 = keep the first-stage order
 
 # --- generation -----------------------------------------------------------
-llm_backend: ollama            # ollama | fake (fake = deterministic stub, used by tests/CI)
+llm_backend: ollama            # ollama | openai (any OpenAI-compatible API) | fake (stub for tests)
 llm_model: qwen2.5:3b
+# ollama -> http://127.0.0.1:11434 ; openai -> https://api.deepseek.com/v1
+# (Ollama's own OpenAI shim is http://127.0.0.1:11434/v1)
 llm_base_url: http://127.0.0.1:11434
+# Never commit a real key: export MARCUSRAG_API_KEY instead. Local servers keep this empty.
+llm_api_key: ""
 temperature: 0.0
 request_timeout: 120.0
 max_context_chars: 8000        # evidence budget in the prompt; the drop is reported, not silent

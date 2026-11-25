@@ -6,7 +6,8 @@
 - 检索：混合检索（向量 + BM25，RRF 融合）/ MMR / 纯相似度，可选词法或 cross-encoder 重排
 - 向量库：Chroma（持久化）/ 内存 JSON（零依赖演示）
 - 嵌入：sentence-transformers（`all-MiniLM-L6-v2` 等）/ 哈希嵌入（离线兜底）
-- 生成：本地 Ollama（默认 `qwen2.5:3b`），通过 HTTP API 调用，无需 LangChain provider 包
+- 生成：本地 Ollama（默认 `qwen2.5:3b`）或任意 OpenAI 兼容接口（DeepSeek / Kimi / LM Studio / vLLM），
+  统一用 HTTP 调用，无需 LangChain provider 包
 - 评测：内置 35 条用例的评测集，量化 Recall@k / Hit@k / MRR / 引用精确率，CI 带门禁
 
 > **v0.2.0 重构说明**：原 `src/` 包与 `loaders.py` 存在循环导入、多文件索引丢失、重复写入
@@ -69,7 +70,7 @@ marcusrag/
   rerank.py       LexicalReranker（idf 覆盖率 + 邻近度，无模型）/ CrossEncoderReranker
   prompts.py      指令与证据隔离（system 消息 + <context> 包裹）
   citations.py    [文件:页码] 解析、真实性校验、答案引用回链与证据高亮
-  llm.py          Ollama HTTP 后端 / Fake 后端
+  llm.py          Ollama / OpenAI 兼容 / Fake 三种后端
   pipeline.py     ingest 与问答编排（依赖全部可注入）
   evaluate.py     JSONL 评测集执行器与指标计算
   cli.py          index / ask / eval / info 四个子命令
@@ -141,6 +142,11 @@ python -m marcusrag eval --data-dir evals/corpus --embedder hash --store memory 
 
 # 端到端（含答案质量），需要本地 Ollama
 python -m marcusrag eval --data-dir evals/corpus --end-to-end --output report.json
+
+# 端到端，改用任意 OpenAI 兼容接口（DeepSeek / Kimi / LM Studio / vLLM / Ollama 的 /v1）
+export MARCUSRAG_API_KEY=sk-...        # 本地服务可省略；也可用 --llm-api-key
+python -m marcusrag eval --data-dir evals/corpus --end-to-end \
+  --llm-backend openai --llm-base-url https://api.deepseek.com/v1 --llm-model deepseek-chat
 ```
 
 本机实测（30 条可回答用例，`k=3`，`BAAI/bge-small-zh-v1.5` + Chroma，chunk 320/64）：

@@ -8,6 +8,7 @@ Design rules:
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Any
@@ -83,9 +84,10 @@ class Settings:
     rerank_base_weight: float = 0.7  # lexical re-rank: share of the first-stage score kept
 
     # generation
-    llm_backend: str = "ollama"  # "ollama" | "fake"
+    llm_backend: str = "ollama"  # "ollama" | "openai" | "fake"
     llm_model: str = "qwen2.5:3b"
     llm_base_url: str = "http://127.0.0.1:11434"
+    llm_api_key: str = ""  # falls back to $MARCUSRAG_API_KEY; never logged
     temperature: float = 0.0
     request_timeout: float = 120.0
     max_context_chars: int = 8000
@@ -143,6 +145,20 @@ class Settings:
             issues.append("hybrid_vector_weight + hybrid_bm25_weight must be > 0; falling back to equal weights.")
         if self.store == "chroma" and self.embedder == "hash":
             issues.append("store=chroma with embedder=hash is allowed for smoke tests but has poor recall quality.")
+        backend = (self.llm_backend or "ollama").lower()
+        if backend in ("openai", "openai-compatible", "compatible"):
+            if not self.llm_base_url.rstrip("/").endswith("/v1") and ":11434" in self.llm_base_url:
+                issues.append(
+                    f"llm_backend=openai but llm_base_url={self.llm_base_url} lacks the '/v1' suffix; "
+                    "Ollama's OpenAI shim lives at http://127.0.0.1:11434/v1."
+                )
+            if not self.llm_api_key and "127.0.0.1" not in self.llm_base_url and "localhost" not in self.llm_base_url:
+                issues.append(
+                    "llm_backend=openai with no api key for a remote endpoint; "
+                    "set $MARCUSRAG_API_KEY or --llm-api-key, otherwise the request will likely return 401."
+                )
+        elif backend not in ("ollama", "fake"):
+            issues.append(f"unknown llm_backend '{self.llm_backend}'; expected ollama | openai | fake.")
         return issues
 
     def to_dict(self) -> dict[str, Any]:
@@ -199,4 +215,9 @@ def load_settings(config_path: str | Path | None = None, **overrides: Any) -> Se
         settings = Settings.from_yaml("config.yaml")
     else:
         settings = Settings()
-    return settings.override(**overrides)
+    settings = settings.override(**overrides)
+    # Secrets must never be hard-coded in config.yaml; the environment wins when
+    # the file leaves the key empty.
+    if not settings.llm_api_key:
+        settings.llm_api_key = os.environ.get("MARCUSRAG_API_KEY", "")
+    return settings
