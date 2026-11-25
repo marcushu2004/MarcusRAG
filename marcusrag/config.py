@@ -71,10 +71,16 @@ class Settings:
 
     # retrieval
     store: str = "chroma"  # "chroma" (persistent) | "memory" (json, for tests/demo)
-    search_type: str = "mmr"  # "mmr" | "similarity"
+    search_type: str = "hybrid"  # "hybrid" (vector+BM25) | "mmr" | "similarity"
     top_k: int = 4
     fetch_k: int = 20
     mmr_lambda: float = 0.5
+    hybrid_vector_weight: float = 1.0
+    hybrid_bm25_weight: float = 1.0
+    rrf_k: int = 60
+    rerank: str = "lexical"  # "lexical" (no model) | "cross-encoder" | "none"
+    rerank_model: str = "BAAI/bge-reranker-base"
+    rerank_base_weight: float = 0.7  # lexical re-rank: share of the first-stage score kept
 
     # generation
     llm_backend: str = "ollama"  # "ollama" | "fake"
@@ -111,7 +117,7 @@ class Settings:
                 f"chunk_overlap ({self.chunk_overlap}) >= chunk_size ({self.chunk_size}); "
                 "chunks will not advance and the index will explode."
             )
-        max_tokens = model_max_tokens(self.embedding_model)
+        max_tokens = model_max_tokens(self.embedding_model) if self.embedder == "hf" else 0
         if max_tokens:
             ratio = CHARS_PER_TOKEN.get(self.profile, 4.0)
             estimated = self.chunk_size / ratio
@@ -124,6 +130,17 @@ class Settings:
                 )
         if self.fetch_k < self.top_k:
             issues.append(f"fetch_k ({self.fetch_k}) < top_k ({self.top_k}); retrieval will be padded or short.")
+        if self.search_type not in ("hybrid", "mmr", "similarity"):
+            issues.append(f"unknown search_type '{self.search_type}'; expected hybrid | mmr | similarity.")
+        if self.rerank not in ("none", "lexical", "cross-encoder"):
+            issues.append(f"unknown rerank '{self.rerank}'; expected none | lexical | cross-encoder.")
+        if not 0.0 <= self.rerank_base_weight <= 1.0:
+            issues.append(
+                f"rerank_base_weight={self.rerank_base_weight} is outside [0, 1]; "
+                "the lexical re-ranker will clamp it."
+            )
+        if self.search_type == "hybrid" and self.hybrid_vector_weight + self.hybrid_bm25_weight <= 0:
+            issues.append("hybrid_vector_weight + hybrid_bm25_weight must be > 0; falling back to equal weights.")
         if self.store == "chroma" and self.embedder == "hash":
             issues.append("store=chroma with embedder=hash is allowed for smoke tests but has poor recall quality.")
         return issues

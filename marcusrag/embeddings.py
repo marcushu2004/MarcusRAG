@@ -47,8 +47,15 @@ class HfEmbedder:
         self.name = model_name
         self.batch_size = batch_size
         self._model = SentenceTransformer(model_name, device=device)
-        self.dimension = int(self._model.get_sentence_embedding_dimension())
+        self.dimension = int(self._dimension())
         self.max_seq_length = int(getattr(self._model, "max_seq_length", 0) or 0)
+
+    def _dimension(self) -> int:
+        """sentence-transformers 6.0 renamed this accessor; support both."""
+        getter = getattr(self._model, "get_embedding_dimension", None) or getattr(
+            self._model, "get_sentence_embedding_dimension"
+        )
+        return int(getter())
 
     def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         vectors = self._model.encode(

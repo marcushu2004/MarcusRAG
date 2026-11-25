@@ -1,35 +1,47 @@
-# MarcusRAG configuration (copy to config.yaml and edit).
-# Every key here maps 1:1 to a field of marcusrag.config.Settings.
+# Copy to config.yaml — config.yaml is never read implicitly from the package.
+# Every key can also be overridden per-run on the CLI (see `python -m marcusrag ask -h`).
 
-# ---- data & index ----------------------------------------------------------
-data_dir: data/pdfs          # PDF / TXT / Markdown input directory
-index_root: index            # indexes are written to index/<embedding-model>/<store>/
+# --- corpus ---------------------------------------------------------------
+data_dir: data/pdfs            # where your PDF / TXT / MD files live
+index_root: index              # index/<embedding-model>/<store>/ is created under it
 
-# ---- embedding -------------------------------------------------------------
-embedder: hf                 # hf = sentence-transformers, hash = offline fallback
-embedding_model: sentence-transformers/all-MiniLM-L6-v2
+# --- chunking -------------------------------------------------------------
+profile: zh                    # en | zh; picks default chunk sizes and the prompt language
+chunk_size: 400                # characters per chunk (must stay under the model token limit)
+chunk_overlap: 80              # must be smaller than chunk_size
+
+# --- embeddings -----------------------------------------------------------
+embedder: hf                   # hf (sentence-transformers, needs torch) | hash (offline demo)
+embedding_model: BAAI/bge-small-zh-v1.5
 embedding_batch_size: 32
 
-# ---- chunking --------------------------------------------------------------
-profile: en                  # en | zh (controls separators and default chunk size)
-chunk_size: 600              # keep below the model token limit (see `marcusrag info` warnings)
-chunk_overlap: 100
+# --- vector store ---------------------------------------------------------
+store: chroma                  # chroma (persistent) | memory (JSON, for tests/demos)
 
-# ---- retrieval -------------------------------------------------------------
-store: chroma                # chroma (persistent) | memory (json, for demos/tests)
-search_type: mmr             # mmr | similarity
-top_k: 4
-fetch_k: 20
-mmr_lambda: 0.5
+# --- retrieval ------------------------------------------------------------
+search_type: hybrid            # hybrid (BM25 + vector, RRF) | mmr | similarity
+top_k: 4                       # evidence chunks handed to the generator
+fetch_k: 20                    # candidates pulled before reranking
+mmr_lambda: 0.5                # only for search_type=mmr
 
-# ---- generation ------------------------------------------------------------
-llm_backend: ollama          # ollama | fake
+# Reciprocal-rank fusion weights and damping (search_type=hybrid)
+hybrid_vector_weight: 1.0
+hybrid_bm25_weight: 1.0
+rrf_k: 60
+
+# Reranking of the fetch_k candidates: none | lexical | cross-encoder
+rerank: lexical
+rerank_model: BAAI/bge-reranker-base      # only for rerank=cross-encoder
+rerank_base_weight: 0.7        # 0 = pure rerank score, 1 = keep the first-stage order
+
+# --- generation -----------------------------------------------------------
+llm_backend: ollama            # ollama | fake (fake = deterministic stub, used by tests/CI)
 llm_model: qwen2.5:3b
 llm_base_url: http://127.0.0.1:11434
 temperature: 0.0
 request_timeout: 120.0
-max_context_chars: 8000
+max_context_chars: 8000        # evidence budget in the prompt; the drop is reported, not silent
 
-# ---- evidence guard --------------------------------------------------------
-refuse_when_empty: true      # answer "文档中未找到相关依据" when nothing is retrieved
-verify_citations: true       # flag citations that are not in the retrieved evidence
+# --- answer safety --------------------------------------------------------
+refuse_when_empty: true        # say "not in the documents" instead of guessing
+verify_citations: true         # citations must point at a chunk retrieved for this question

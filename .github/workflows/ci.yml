@@ -1,0 +1,82 @@
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # Minimal runtime only: no torch, no model downloads. The suite must stay
+      # green on a bare interpreter, which is what keeps it cheap enough to gate.
+      - name: Install minimal runtime
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Retrieval eval gate
+        env:
+          INDEX_ROOT: ${{ runner.temp }}/index
+          EVAL_JSON: ${{ runner.temp }}/eval.json
+        run: |
+          python -m marcusrag.cli eval \
+            --data-dir evals/corpus \
+            --index-root "$INDEX_ROOT" \
+            --store memory \
+            --embedder hash \
+            --evalset evals/qa.jsonl \
+            --k 3 \
+            --search-type hybrid \
+            --rerank lexical \
+            --profile zh \
+            --json \
+            --output "$EVAL_JSON"
+          python - <<'PY'
+          import json, os, sys
+
+          report = json.load(open(os.environ["EVAL_JSON"], encoding="utf-8"))
+          floors = {"recall_at_k": 0.90, "hit_rate": 0.90, "mrr": 0.85}
+          failures = [
+              f"{name}={report[name]:.3f} < {floor:.3f}"
+              for name, floor in floors.items()
+              if (report.get(name) or 0.0) < floor
+          ]
+          print(
+              f"Recall@{report['k']}={report['recall_at_k']:.3f} "
+              f"Hit@{report['k']}={report['hit_rate']:.3f} MRR={report['mrr']:.3f}"
+          )
+          if report.get("fabricated_citations"):
+              failures.append(f"fabricated_citations={report['fabricated_citations']}")
+          if failures:
+              print("eval gate failed: " + "; ".join(failures), file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-py${{ matrix.python-version }}
+          path: ${{ runner.temp }}/eval.json
+          if-no-files-found: warn

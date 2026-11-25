@@ -9,12 +9,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
 from .chunking import split_documents
-from .citations import Citation, allowed_keys, parse_citations, verify_citations
+from .citations import (
+    Citation,
+    Evidence,
+    allowed_keys,
+    annotate_answer,
+    build_evidence,
+    parse_citations,
+    verify_citations,
+)
 from .config import Settings
 from .documents import Doc, discover_files, file_digest, load_documents
 from .embeddings import Embedder, build_embedder
@@ -48,11 +57,20 @@ class AnswerResult:
     unverified_citations: list[Citation]
     refused: bool
     reason: str | None = None
+    evidence: list[Evidence] = field(default_factory=list)
+
+    def highlighted(self) -> str:
+        """Answer with every verified citation pointing back at its evidence."""
+        return annotate_answer(self.answer, self.evidence)
+
+    def cited_evidence(self) -> list[Evidence]:
+        return [item for item in self.evidence if item.cited]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "question": self.question,
             "answer": self.answer,
+            "answer_annotated": self.highlighted(),
             "refused": self.refused,
             "reason": self.reason,
             "sources": [
@@ -66,6 +84,7 @@ class AnswerResult:
             ],
             "citations": [str(c) for c in self.citations],
             "unverified_citations": [str(c) for c in self.unverified_citations],
+            "evidence": [item.to_dict() for item in self.evidence],
         }
 
 
@@ -109,6 +128,11 @@ def build_index(
     embedder = embedder or build_embedder(
         settings.embedder, settings.embedding_model, batch_size=settings.embedding_batch_size
     )
+    if rebuild and store is None:
+        # `--rebuild` has to drop the directory *before* the store is opened:
+        # a corrupt sqlite fails inside PersistentClient, so a later reset()
+        # would never be reached and the rebuild could not self-heal.
+        shutil.rmtree(Path(settings.index_dir), ignore_errors=True)
     store = store or build_store(settings.store, settings.index_dir)
 
     if rebuild:
@@ -240,6 +264,7 @@ def answer_question(
         unverified_citations=unverified,
         refused=refused,
         reason=None,
+        evidence=build_evidence(sources, citations, query=question),
     )
 
 

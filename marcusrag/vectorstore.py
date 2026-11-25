@@ -23,6 +23,10 @@ class Store(Protocol):
 
     def query(self, embedding: Sequence[float], k: int) -> list[tuple[str, str, dict[str, Any], float]]: ...
 
+    def get(self, ids: Sequence[str]) -> list[tuple[str, str, dict[str, Any], float]]: ...
+
+    def all_items(self) -> list[tuple[str, str, dict[str, Any]]]: ...
+
     def count(self) -> int: ...
 
     def reset(self) -> None: ...
@@ -66,11 +70,22 @@ class ChromaStore:
 
         self.directory = Path(directory)
         self.directory.mkdir(parents=True, exist_ok=True)
-        self._client = chromadb.PersistentClient(path=str(self.directory))
-        self._collection = self._client.get_or_create_collection(
-            name=self.collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        try:
+            self._client = chromadb.PersistentClient(path=str(self.directory))
+            self._collection = self._client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception as exc:  # noqa: BLE001 - chroma raises plain InternalError
+            # A half-initialised sqlite (interrupted first run, or an index
+            # directory copied between machines) surfaces as an opaque chroma
+            # error such as "no such table: acquire_write". Say what to do.
+            raise RuntimeError(
+                f"failed to open the Chroma index at {self.directory}: {exc}. "
+                f"The index directory is probably corrupt or was written by an "
+                f"incompatible chromadb version; delete it or run "
+                f"'python -m marcusrag index --rebuild'."
+            ) from exc
 
     def upsert(self, ids, texts, metadatas, embeddings) -> int:
         if not ids:
@@ -102,6 +117,41 @@ class ChromaStore:
             hits.append((doc_id, text or "", metadata or {}, 1.0 - float(distance)))
         hits.sort(key=lambda item: item[3], reverse=True)
         return hits
+
+    def get(self, ids: Sequence[str]) -> list[tuple[str, str, dict[str, Any], float]]:
+        """Fetch chunks by id. Order follows `ids`; score is unknown (0.0).
+
+        Hybrid fusion works on ids, so it must be able to turn a BM25 hit back
+        into text+metadata without a second search.
+        """
+        if not ids:
+            return []
+        result = self._collection.get(ids=list(ids), include=["documents", "metadatas"])
+        by_id: dict[str, tuple[str, str, dict[str, Any]]] = {}
+        for doc_id, text, metadata in zip(
+            result.get("ids") or [], result.get("documents") or [], result.get("metadatas") or []
+        ):
+            by_id[doc_id] = (doc_id, text or "", metadata or {})
+        return [(*by_id[doc_id], 0.0) for doc_id in ids if doc_id in by_id]
+
+    def all_items(self) -> list[tuple[str, str, dict[str, Any]]]:
+        """Every chunk in the collection (BM25 is built from this)."""
+        page = 1000
+        items: list[tuple[str, str, dict[str, Any]]] = []
+        offset = 0
+        while True:
+            result = self._collection.get(
+                limit=page, offset=offset, include=["documents", "metadatas"]
+            )
+            ids = result.get("ids") or []
+            if not ids:
+                break
+            for doc_id, text, metadata in zip(ids, result.get("documents") or [], result.get("metadatas") or []):
+                items.append((doc_id, text or "", metadata or {}))
+            if len(ids) < page:
+                break
+            offset += page
+        return items
 
     def count(self) -> int:
         return int(self._collection.count())
@@ -156,6 +206,19 @@ class MemoryStore:
         ]
         scored.sort(key=lambda item: item[3], reverse=True)
         return scored[: max(k, 0)]
+
+    def get(self, ids: Sequence[str]) -> list[tuple[str, str, dict[str, Any], float]]:
+        if not ids:
+            return []
+        hits: list[tuple[str, str, dict[str, Any], float]] = []
+        for doc_id in ids:
+            item = self._items.get(doc_id)
+            if item:
+                hits.append((item["id"], item["text"], item["metadata"], 0.0))
+        return hits
+
+    def all_items(self) -> list[tuple[str, str, dict[str, Any]]]:
+        return [(item["id"], item["text"], item["metadata"]) for item in self._items.values()]
 
     def count(self) -> int:
         return len(self._items)

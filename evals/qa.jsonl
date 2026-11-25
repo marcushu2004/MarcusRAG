@@ -1,0 +1,35 @@
+{"id": "bm25-01", "question": "BM25 的 k1 参数通常取什么范围，它控制什么？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "参数取值 + 语义"}
+{"id": "bm25-02", "question": "BM25 里的 b 参数取 0 和取 1 分别代表什么？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "参数语义"}
+{"id": "bm25-03", "question": "IDF 在 BM25 中起什么作用？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "罕见词加权"}
+{"id": "bm25-04", "question": "中文用字符二元组分词有什么优缺点？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "bigram 取舍"}
+{"id": "bm25-05", "question": "为什么 BM25 无法处理同义改写？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "字面匹配局限"}
+{"id": "bm25-06", "question": "BM25 的打分公式中 tf 和 avgdl 分别是什么？", "gold": [{"file": "01-bm25.md", "page": 1}], "expect": "answer", "note": "公式变量"}
+{"id": "rrf-01", "question": "RRF 的分数公式是什么？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "公式"}
+{"id": "rrf-02", "question": "RRF 中的 k 为什么常取 60？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "平滑常数作用"}
+{"id": "rrf-03", "question": "为什么不直接把余弦相似度和 BM25 分数相加？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "量纲问题"}
+{"id": "rrf-04", "question": "min-max 归一化后相加有什么问题？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "依赖候选集"}
+{"id": "rrf-05", "question": "融合两路检索结果时每路应该取多少条候选？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "取深候选"}
+{"id": "rrf-06", "question": "RRF 融合之后还需要重排器吗？", "gold": [{"file": "02-rrf.md", "page": 1}], "expect": "answer", "note": "精排必要性"}
+{"id": "chunk-01", "question": "中文场景 chunk_size 常用多少字符？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "数值"}
+{"id": "chunk-02", "question": "chunk_overlap 一般设为多大，设太大会怎样？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "重叠比例与副作用"}
+{"id": "chunk-03", "question": "切分时为什么优先按文档结构边界切？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "结构即语义边界"}
+{"id": "chunk-04", "question": "如果循环里反复覆盖同一个变量，索引会出现什么问题？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "多文件丢失"}
+{"id": "chunk-05", "question": "片段标识应该怎么生成？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "确定性 id"}
+{"id": "chunk-06", "question": "片段切得太长或太短各有什么问题？", "gold": [{"file": "03-chunking.md", "page": 1}], "expect": "answer", "note": "权衡"}
+{"id": "cite-01", "question": "答案里的引用应该用什么格式标注？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "格式"}
+{"id": "cite-02", "question": "引用验证的流程包含哪几步？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "四步"}
+{"id": "cite-03", "question": "发现可疑引用后应该静默丢弃吗？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "应显式展示"}
+{"id": "cite-04", "question": "拒答判定可以放在哪三个位置？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "三重保险"}
+{"id": "cite-05", "question": "引用高亮的编号回链怎么实现？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "证据#n"}
+{"id": "cite-06", "question": "如果 top-4 召回里只有第 4 条被引用，说明什么？", "gold": [{"file": "04-citations.md", "page": 1}], "expect": "answer", "note": "排序问题信号"}
+{"id": "emb-01", "question": "余弦相似度为什么要求向量先做 L2 归一化？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "模长主导"}
+{"id": "emb-02", "question": "fetch_k 和 top_k 分别决定什么？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "召回与上下文"}
+{"id": "emb-03", "question": "MMR 的打分公式是什么，λ 取 1 会怎样？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "公式与退化"}
+{"id": "emb-04", "question": "增大 top_k 有什么代价？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "成本与干扰"}
+{"id": "emb-05", "question": "哈希嵌入能用来评估真实检索质量吗？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "仅冒烟"}
+{"id": "emb-06", "question": "MMR 主要解决什么问题？", "gold": [{"file": "05-embedding.md", "page": 1}], "expect": "answer", "note": "近重复"}
+{"id": "refuse-01", "question": "这套系统用的 GPU 型号和显存容量是多少？", "gold": [], "expect": "refusal", "note": "语料未提及硬件"}
+{"id": "refuse-02", "question": "BM25 参数调优比赛 2024 年的冠军用了什么模型？", "gold": [], "expect": "refusal", "note": "外部事实，语料无"}
+{"id": "refuse-03", "question": "这个项目的商业授权年费是多少钱？", "gold": [], "expect": "refusal", "note": "价格信息不存在"}
+{"id": "refuse-04", "question": "评测语料标注一共花了多少人天？", "gold": [], "expect": "refusal", "note": "成本信息不存在"}
+{"id": "refuse-05", "question": "作者读的是哪所大学的博士？", "gold": [], "expect": "refusal", "note": "个人背景，语料无"}
