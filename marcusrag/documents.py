@@ -43,7 +43,7 @@ def file_digest(path: Path) -> str:
     return sha.hexdigest()
 
 
-def _load_pdf(path: Path) -> list[Doc]:
+def _load_pdf(path: Path) -> tuple[list[Doc], int]:
     try:
         from pypdf import PdfReader
     except ModuleNotFoundError as exc:  # pragma: no cover - dependency guard
@@ -60,7 +60,7 @@ def _load_pdf(path: Path) -> list[Doc]:
         if not text:
             continue
         docs.append(Doc(text=text, metadata={"source": str(path), "page": index + 1, "type": "pdf"}))
-    return docs
+    return docs, len(reader.pages)
 
 
 def _load_text(path: Path) -> list[Doc]:
@@ -84,18 +84,48 @@ def load_documents(data_dir: str | Path, *, verbose: bool = False) -> list[Doc]:
     The returned list contains documents from *all* files. This is the bug the
     original `loaders.py` had: `docs` was reassigned inside the loop, so only
     the final PDF was chunked and indexed.
+
+    Sources that produced no text are reported by `scan_documents`; use it when
+    the caller needs to tell the user "this PDF was skipped" instead of silently
+    indexing one document fewer.
     """
-    docs: list[Doc] = []
+    return scan_documents(data_dir, verbose=verbose).docs
+
+
+@dataclass
+class LoadResult:
+    """Documents plus the sources that yielded no usable text."""
+
+    docs: list[Doc] = field(default_factory=list)
+    empty_sources: list[tuple[str, str]] = field(default_factory=list)
+
+
+def scan_documents(data_dir: str | Path, *, verbose: bool = False) -> LoadResult:
+    """Like `load_documents`, but also records why a file contributed nothing.
+
+    A scanned PDF has no text layer: pypdf returns empty strings for every page.
+    Dropping it silently makes the index quietly incomplete, so the reason is
+    carried back to the caller instead.
+    """
+    result = LoadResult()
     for path in discover_files(data_dir):
-        if path.suffix.lower() == ".pdf":
-            loaded = _load_pdf(path)
+        is_pdf = path.suffix.lower() == ".pdf"
+        if is_pdf:
+            loaded, total_pages = _load_pdf(path)
         else:
-            loaded = _load_text(path)
+            loaded, total_pages = _load_text(path), 1
         if verbose:
-            pages = len(loaded)
-            print(f"  loaded {path.name}: {pages} page(s) / segment(s)")
-        docs.extend(loaded)  # accumulate, never overwrite
-    return docs
+            print(f"  loaded {path.name}: {len(loaded)} page(s) / segment(s)")
+        if not loaded:
+            if is_pdf and total_pages:
+                reason = f"{total_pages} 页均无可提取文本层（疑似扫描件/图片型 PDF，需要 OCR）"
+            elif is_pdf:
+                reason = "PDF 无任何页面"
+            else:
+                reason = "文件为空或仅含空白字符"
+            result.empty_sources.append((path.name, reason))
+        result.docs.extend(loaded)  # accumulate, never overwrite
+    return result
 
 
 def group_sources(docs: Iterable[Doc]) -> dict[str, int]:

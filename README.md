@@ -42,6 +42,9 @@ ollama pull qwen2.5:3b
 python -m marcusrag index
 ```
 
+> 扫描件（图片型 PDF）没有文本层，pypdf 提取为空。这类文件不会被静默丢弃，`index` 会明确告警
+> 打印"未索引 + 原因"，`--dry-run` 同样可见；需要其内容请先做 OCR 再入库。
+
 零依赖端到端自检（不需要 GPU、Chroma 或 Ollama）：
 
 ```bash
@@ -169,9 +172,9 @@ python -m marcusrag eval --data-dir evals/corpus --end-to-end --output report.js
 python -m unittest discover -s tests -v
 ```
 
-37 条用例，覆盖的回归点：多文件全部入库、索引幂等、增量跳过、空索引拒答、引用校验（含伪造引用）、
+39 条用例，覆盖的回归点：多文件全部入库、索引幂等、增量跳过、空索引拒答、引用校验（含伪造引用）、
 prompt 证据隔离、chunk 参数校验、BM25 中文切分、RRF 融合顺序、重排的 base 分数融合与边界（常量分数、
-缺 base、权重 0/1）。CI 在 3.10 / 3.11 / 3.12 上跑全部单测，并用 hash + 内存库执行评测门禁
+缺 base、权重 0/1）、无文本层文件被显式报告而非静默丢弃。CI 在 3.10 / 3.11 / 3.12 上跑全部单测，并用 hash + 内存库执行评测门禁
 （Recall@3 ≥ 0.90、MRR ≥ 0.85、编造引用为 0）。
 
 ---

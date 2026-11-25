@@ -22,6 +22,7 @@ from marcusrag.citations import (
     verify_citations,
 )
 from marcusrag.config import Settings
+from marcusrag.documents import load_documents, scan_documents
 from marcusrag.embeddings import HashEmbedder
 from marcusrag.evaluate import evaluate, load_evalset
 from marcusrag.pipeline import build_index
@@ -267,6 +268,30 @@ class EvaluateTestCase(unittest.TestCase):
         self.assertEqual(payload["cases"], 3)
         self.assertIn("details", payload)
         self.assertIn("Recall@", report.format())
+
+
+class ScanDocumentsTests(unittest.TestCase):
+    """A file that yields no text must be reported, not silently dropped."""
+
+    def test_reports_sources_without_text(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "good.md").write_text("# t\n\n有内容的段落。", encoding="utf-8")
+            (root / "empty.txt").write_text("   \n\t\n", encoding="utf-8")
+
+            scanned = scan_documents(root)
+
+            self.assertEqual(len(scanned.docs), 1)
+            self.assertTrue(scanned.docs[0].source.endswith("good.md"))
+            self.assertEqual([name for name, _ in scanned.empty_sources], ["empty.txt"])
+            self.assertIn("空", scanned.empty_sources[0][1])
+
+    def test_load_documents_stays_backward_compatible(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.md").write_text("# a\n\n第一份文档。", encoding="utf-8")
+            (root / "b.md").write_text("# b\n\n第二份文档。", encoding="utf-8")
+            self.assertEqual(len(load_documents(root)), 2)
 
 
 if __name__ == "__main__":  # pragma: no cover

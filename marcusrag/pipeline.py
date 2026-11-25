@@ -25,7 +25,7 @@ from .citations import (
     verify_citations,
 )
 from .config import Settings
-from .documents import Doc, discover_files, file_digest, load_documents
+from .documents import Doc, discover_files, file_digest, load_documents, scan_documents
 from .embeddings import Embedder, build_embedder
 from .llm import ChatModel, build_llm
 from .prompts import build_messages
@@ -46,6 +46,7 @@ class IngestReport:
     store: str
     warnings: list[str] = field(default_factory=list)
     per_source: dict[str, int] = field(default_factory=dict)
+    empty_sources: list[tuple[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -122,8 +123,11 @@ def build_index(
     verbose: bool = False,
 ) -> IngestReport:
     files = discover_files(settings.data_dir)
+    empty_sources: list[tuple[str, str]] = []
     if docs is None:
-        docs = load_documents(settings.data_dir, verbose=verbose)
+        scanned = scan_documents(settings.data_dir, verbose=verbose)
+        docs = scanned.docs
+        empty_sources = scanned.empty_sources
 
     embedder = embedder or build_embedder(
         settings.embedder, settings.embedding_model, batch_size=settings.embedding_batch_size
@@ -198,6 +202,10 @@ def build_index(
         name = Path(str(chunk.metadata.get("source", "unknown"))).name
         per_source[name] = per_source.get(name, 0) + 1
 
+    warnings = settings.warnings()
+    for name, reason in empty_sources:
+        warnings.append(f"{name} 未索引：{reason}")
+
     return IngestReport(
         files=len(files),
         documents=len(docs),
@@ -206,8 +214,9 @@ def build_index(
         skipped_files=skipped,
         index_dir=str(settings.index_dir),
         store=settings.store,
-        warnings=settings.warnings(),
+        warnings=warnings,
         per_source=per_source,
+        empty_sources=empty_sources,
     )
 
 

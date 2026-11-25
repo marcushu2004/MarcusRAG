@@ -107,9 +107,10 @@ def _cmd_index(args: argparse.Namespace) -> int:
 
     if args.dry_run:
         from .chunking import split_documents
-        from .documents import discover_files, load_documents
+        from .documents import discover_files, scan_documents
 
-        docs = load_documents(settings.data_dir, verbose=True)
+        scanned = scan_documents(settings.data_dir, verbose=True)
+        docs = scanned.docs
         chunks = split_documents(
             docs,
             chunk_size=settings.chunk_size,
@@ -120,10 +121,15 @@ def _cmd_index(args: argparse.Namespace) -> int:
             "files": [p.name for p in discover_files(settings.data_dir)],
             "documents": len(docs),
             "chunks": len(chunks),
+            "empty_sources": [{"file": name, "reason": reason} for name, reason in scanned.empty_sources],
             "dry_run": True,
         }
-        print(json.dumps(payload, ensure_ascii=False, indent=2) if args.as_json else
-              f"dry-run: {len(docs)} document segments -> {len(chunks)} chunks；未写入任何索引")
+        if args.as_json:
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            print(f"dry-run: {len(docs)} document segments -> {len(chunks)} chunks；未写入任何索引")
+            for name, reason in scanned.empty_sources:
+                print(f"  - {name}: {reason}")
         return 0
 
     report = build_index(
@@ -141,6 +147,7 @@ def _cmd_index(args: argparse.Namespace) -> int:
         "index_dir": report.index_dir,
         "store": report.store,
         "per_source": report.per_source,
+        "empty_sources": [{"file": name, "reason": reason} for name, reason in report.empty_sources],
         "warnings": report.warnings,
     }
     if args.as_json:
@@ -155,6 +162,11 @@ def _cmd_index(args: argparse.Namespace) -> int:
             print(f"  - {name}: {count} chunk(s)")
         if report.written == 0:
             print("no new content; index is up to date")
+        if report.empty_sources:
+            print("")
+            print(f"warning: {len(report.empty_sources)} file(s) contributed no text and were not indexed:")
+            for name, reason in report.empty_sources:
+                print(f"  - {name}: {reason}")
     return 0
 
 
