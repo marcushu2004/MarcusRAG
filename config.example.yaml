@@ -1,0 +1,35 @@
+# MarcusRAG configuration (copy to config.yaml and edit).
+# Every key here maps 1:1 to a field of marcusrag.config.Settings.
+
+# ---- data & index ----------------------------------------------------------
+data_dir: data/pdfs          # PDF / TXT / Markdown input directory
+index_root: index            # indexes are written to index/<embedding-model>/<store>/
+
+# ---- embedding -------------------------------------------------------------
+embedder: hf                 # hf = sentence-transformers, hash = offline fallback
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+embedding_batch_size: 32
+
+# ---- chunking --------------------------------------------------------------
+profile: en                  # en | zh (controls separators and default chunk size)
+chunk_size: 600              # keep below the model token limit (see `marcusrag info` warnings)
+chunk_overlap: 100
+
+# ---- retrieval -------------------------------------------------------------
+store: chroma                # chroma (persistent) | memory (json, for demos/tests)
+search_type: mmr             # mmr | similarity
+top_k: 4
+fetch_k: 20
+mmr_lambda: 0.5
+
+# ---- generation ------------------------------------------------------------
+llm_backend: ollama          # ollama | fake
+llm_model: qwen2.5:3b
+llm_base_url: http://127.0.0.1:11434
+temperature: 0.0
+request_timeout: 120.0
+max_context_chars: 8000
+
+# ---- evidence guard --------------------------------------------------------
+refuse_when_empty: true      # answer "文档中未找到相关依据" when nothing is retrieved
+verify_citations: true       # flag citations that are not in the retrieved evidence

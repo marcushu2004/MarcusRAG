@@ -1,388 +1,141 @@
-# ❗IMPORTANT❗
+# MarcusRAG
 
-## Main part and src package still developing. DO NOT USE THIS. PLEASE USE loaders.py
+基于本地文档的**证据优先**检索增强问答（RAG）系统：把 PDF / TXT / Markdown 切块入库，
+检索后只依据召回到的片段作答，并强制校验答案里的引用是否真实存在于证据中。
 
-## 主函数部分和src包仍在开发。请不要使用。请使用loaders.py。
+- 向量库：Chroma（持久化）/ 内存 JSON（零依赖演示）
+- 嵌入：sentence-transformers（`all-MiniLM-L6-v2` 等）/ 哈希嵌入（离线兜底）
+- 生成：本地 Ollama（默认 `qwen2.5:3b`），通过 HTTP API 调用，无需 LangChain provider 包
 
-This project uses the Qwen2.5 model provided by Alibaba Cloud.
-
-- Model: Qwen2.5
-- License: Qwen License (by Alibaba Cloud)
-- This repository's source code is licensed under the MIT License.
-- The model weights are NOT covered by the MIT License.
-
-本项目使用了阿里云发布的通义千问 Qwen2.5 模型。
-
-- 项目代码采用 MIT License
-- 模型权重遵循阿里云 Qwen 模型的原始许可证
-- 本仓库不重新分发模型权重
-
-During evaluation, this project uses publicly available academic papers
-as example documents to test the effectiveness of the RAG pipeline on
-long-context retrieval and generation.
-
-This includes the AlphaGo paper published by the DeepMind team, used solely
-for experimental and demonstration purposes. All copyrights remain with
-the original authors and publishers. This repository does not redistribute
-the original paper.
-
-本项目在测试阶段使用了公开发表的学术论文作为示例文档，
-用于验证 RAG（Retrieval-Augmented Generation）系统在长文档理解、
-检索与生成方面的效果。
-
-测试文档包括 DeepMind 团队公开发表的 AlphaGo 相关论文（仅用于实验与演示目的）。
-论文版权归原作者及出版方所有，本项目不重新分发原始论文内容。
-
-
-# Evidence-Based RAG Decision System
-
-**基于证据的 RAG 文本决策系统**
+> **v0.2.0 重构说明**：原 `src/` 包与 `loaders.py` 存在循环导入、多文件索引丢失、重复写入
+> 等问题，已整体重写为 `marcusrag/` 包并提供 CLI。旧入口 `python main.py` 仍然可用。
 
 ---
 
-## Introduction
+## 快速开始
 
-The **Evidence-Based RAG Decision System** is a document understanding and decision-support system built on **Retrieval-Augmented Generation (RAG)**.
+```bash
+# 1. 最小依赖（纯 Python，无 torch）
+pip install -r requirements.txt
 
-This system is designed to help users **extract key information from documents through questions**, instead of reading the entire document manually.
-By asking natural language questions, users can obtain **evidence-backed answers** with references to the original document.
+# 2. 放入文档
+mkdir -p data/pdfs && cp your.pdf data/pdfs/
 
-Typical application scenarios include:
+# 3. 建立索引
+python -m marcusrag index --profile zh --chunk-size 500 --chunk-overlap 80
 
-* Academic paper reading and understanding
-* Key information extraction from long documents
-* Evidence-based question answering
-* Keyword and concept discovery
-* Decision support based on document content
+# 4. 提问
+python -m marcusrag ask "这篇论文的核心贡献是什么？"
 
-The system currently supports **PDF documents**, and is designed to be extensible to other formats such as **DOCX** in the future.
+# 5. 查看配置与索引状态
+python -m marcusrag info
+```
 
----
+完整质量栈（真实语义嵌入 + Chroma）：
 
-## Developing Environment
+```bash
+pip install -r requirements.txt -r requirements-full.txt
+ollama serve &
+ollama pull qwen2.5:3b
+python -m marcusrag index
+```
 
-This section describes the development environment used for this project.
-If you plan to reproduce, modify, or extend the system, the following information may be helpful.
+零依赖端到端自检（不需要 GPU、Chroma 或 Ollama）：
 
-### Hardware
-
-* **Computer Model**: ASUS TUF GAMING FA507RM (华硕天选3，中国版)
-* **CPU**: AMD Ryzen 7 6000 Series
-* **GPU**: NVIDIA RTX 3060 Laptop (6GB VRAM)
-* **Memory**: 16GB DDR4
-* **Storage**: 512GB SSD
-
-### Software
-
-* **IDE**: PyCharm 2025.3.1
-* **Python**: 3.11
-* **LLM Runtime**: Ollama
-* **Operating System**: Windows
-
-Detailed software dependencies are described in the **Technique Part**.
+```bash
+python -m marcusrag index --embedder hash --store memory --llm-backend fake --data-dir data/pdfs
+python -m marcusrag ask "问题" --embedder hash --store memory --llm-backend fake
+python -m unittest discover -s tests -v
+```
 
 ---
 
-## Technique Part
+## 架构
 
-First, special thanks to **ChatGPT / OpenAI** for technical assistance during development.
-Without these tools, completing this project independently would have been significantly more difficult.
+```
+marcusrag/
+  config.py       配置（YAML / CLI 覆盖），含 chunk_size 与模型 token 上限的对齐告警
+  documents.py    PDF / TXT / MD 加载，逐文件累积（修复"只索引最后一个文件"）
+  chunking.py     语言感知的递归切块，校验 overlap < size
+  embeddings.py   HfEmbedder（延迟导入 torch）/ HashEmbedder（离线）
+  vectorstore.py  ChromaStore（持久化）/ MemoryStore（JSON）
+  retrieval.py    相似度或 MMR 重排
+  prompts.py      指令与证据隔离（system 消息 + <context> 包裹）
+  citations.py    [文件:页码] 解析与真实性校验
+  llm.py          Ollama HTTP 后端 / Fake 后端
+  pipeline.py     ingest 与问答编排（依赖全部可注入）
+  cli.py          index / ask / info 三个子命令
+```
 
-I also want to thank the **NVIDIA RAG-related courses**, which helped me understand the fundamental concepts and practical workflow of Retrieval-Augmented Generation.
+数据流：
 
-This section briefly explains **how the system works**, from document ingestion to answer generation.
-Some descriptions may be simplified, and mistakes are possible.
+```
+documents → chunks → embeddings → store
+                                     ↓
+question → embeddings → retrieve(fetch_k) → MMR(top_k) → prompt → LLM → answer
+                                                          ↓
+                                             citation verification → answer + sources
+```
 
----
-
-## What is RAG?
-
-**Retrieval-Augmented Generation (RAG)** is a technique that combines:
-
-* **Information Retrieval** (finding relevant content from documents)
-* **Large Language Models (LLMs)** (generating natural language responses)
-
-Instead of relying solely on the LLM’s internal knowledge, RAG allows the model to:
-
-1. Retrieve relevant document segments
-2. Use them as context
-3. Generate answers **based on actual evidence**
-
-This approach significantly reduces hallucination and improves answer reliability.
-
----
-
-## System Architecture Overview
-
-The system follows a modular pipeline design:
-
-1. **Document Loading**
-
-   * Load PDF documents and convert them into structured `Document` objects
-
-2. **Text Chunking**
-
-   * Split documents into semantically meaningful text chunks
-   * Preserve metadata such as page numbers and source files
-
-3. **Embedding Generation**
-
-   * Convert text chunks into vector representations using embedding models
-
-4. **Vector Storage**
-
-   * Store embeddings in a vector database (Chroma)
-
-5. **Retrieval**
-
-   * Retrieve the most relevant chunks using similarity search or MMR (Max Marginal Relevance)
-
-6. **Context Construction**
-
-   * Organize retrieved chunks into a structured context with source references
-
-7. **LLM Generation**
-
-   * Generate answers using a Large Language Model based strictly on retrieved evidence
+索引目录按嵌入模型隔离（`index/<model>/<store>/`），切换模型不会导致维度不匹配崩溃；
+`manifest.json` 记录文件指纹，重复执行 `index` 为幂等操作。
 
 ---
 
-## Core Technologies
+## 与旧版的差异（破坏性变更）
 
-The system is built using the following technologies:
-
-* **LangChain**
-  Used as the orchestration framework connecting loaders, embeddings, retrievers, and LLMs
-
-* **Chroma Vector Database**
-  Used for local vector storage and semantic retrieval
-
-* **HuggingFace Embeddings**
-  For converting text chunks into dense vector representations
-
-* **Ollama**
-  For running local large language models (e.g., Qwen, Phi-3)
-
-* **Python 3.11**
-  Main development language
+| 旧 | 新 |
+| --- | --- |
+| `python main.py` 内嵌全部逻辑 | `main.py` 仅转发到 `marcusrag.cli` |
+| `src/*.py` + `loaders.py` | 已删除，功能拆分进 `marcusrag/` 各模块 |
+| 硬编码路径与参数 | `config.yaml` + CLI 覆盖 |
+| 循环导入 `main → src → main` | 单向依赖 `cli → pipeline → 组件` |
+| 只索引最后一个 PDF | 所有文件累积索引 |
+| 重复运行产生重复向量 | 确定性 chunk id + manifest 增量 |
+| 答案不打印 | CLI 打印答案、来源与未验证引用 |
 
 ---
 
-## Design Philosophy
+## 配置
 
-This project follows several key design principles:
+复制 `config.example.yaml` 为 `config.yaml`。关键项：
 
-* **Evidence First**
-  Answers must be based on retrieved document content, not free generation
-
-* **Traceability**
-  Every answer can be traced back to its original document and page number
-
-* **Modularity**
-  Document loaders, embedding models, vector stores, and LLMs are replaceable
-
-* **Extensibility**
-  The system is designed to support additional document formats and LLM providers
-
----
-
-## Current Limitations
-
-* Only PDF documents are supported at the moment
-* No graphical user interface (CLI-based usage)
-* Limited document structure understanding (e.g., sections, tables)
-
-These limitations are intentional to keep the system lightweight and focused on core RAG functionality.
+| 键 | 说明 |
+| --- | --- |
+| `data_dir` | 输入文档目录 |
+| `embedding_model` | 嵌入模型；`marcusrag info` 会提示 chunk 是否超出模型 token 上限 |
+| `chunk_size` / `chunk_overlap` | 默认按 `profile`（en/zh）取值，必须满足 overlap < size |
+| `store` | `chroma`（持久化）或 `memory`（JSON，演示/测试） |
+| `search_type` | `mmr`（默认，去冗余）或 `similarity` |
+| `top_k` / `fetch_k` | 最终证据条数 / 候选召回条数 |
+| `refuse_when_empty` | 无召回时直接回答"文档中未找到相关依据" |
+| `verify_citations` | 校验答案引用是否出现在本次证据中，编造引用会被标记 |
 
 ---
 
-## Future Work
+## 测试
 
-Planned improvements include:
+```bash
+python -m unittest discover -s tests -v
+```
 
-* Support for **DOCX** and other document formats
-* Better document structure parsing (sections, headings)
-* Multi-document comparison and analysis
-* Improved citation formatting and source aggregation
-* Web-based user interface
-* Integration with cloud-based LLM providers (OpenAI, DeepSeek, NVIDIA NIM)
+覆盖的回归点：多文件全部入库、索引幂等、增量跳过、空索引拒答、引用校验（含伪造引用）、
+prompt 证据隔离、chunk 参数校验。
 
 ---
 
+## 后续路线
 
-# 基于证据的 RAG 文本决策系统
-
-**Evidence-Based RAG Decision System**
-
----
-
-## 项目简介
-
-**基于证据的 RAG 文本决策系统** 是一个基于 **检索增强生成（Retrieval-Augmented Generation, RAG）** 的文本理解与决策支持系统。
-
-本系统的目标是：
-**通过提问的方式，从文档中获取有证据支撑的关键信息**，而不是依赖模型的自由生成或人工全文阅读。
-
-用户可以使用自然语言向系统提问，系统会基于文档内容给出答案，并且答案**可追溯至原始文档的具体页码或来源**。
-
-典型应用场景包括：
-
-* 学术论文阅读与理解
-* 长文档关键信息提取
-* 基于证据的问答与决策支持
-* 关键词与核心概念发现
-* 文档内容快速定位
-
-当前版本主要支持 **PDF 文档**，系统在设计上支持未来扩展至 **DOCX 等其他文档格式**。
+- S2：评测集（Recall@k / MRR / 引用正确率）+ 混合检索（BM25 + 向量）+ rerank
+- S3：多轮对话记忆、引用定位高亮、批量问答回归脚本
 
 ---
 
-## 开发环境
+## License & Attribution
 
-本章节介绍项目的开发环境配置，供复现、二次开发或功能扩展参考。
+本项目以 MIT License 发布，见 [LICENSE](LICENSE)。
 
-### 硬件环境
+原 README 中的第三方声明在此保留：
 
-* **计算机型号**：ASUS TUF GAMING FA507RM（华硕天选3，中国版）
-* **处理器（CPU）**：AMD Ryzen 7 6000 系列
-* **显卡（GPU）**：NVIDIA RTX 3060 Laptop（6GB 显存）
-* **内存**：16GB DDR4
-* **存储**：512GB SSD
-
-### 软件环境
-
-* **开发工具**：PyCharm 2025.3.1
-* **Python 版本**：3.11
-* **大模型运行环境**：Ollama
-* **操作系统**：Windows
-
-更详细的软件依赖信息将在 **技术说明部分** 介绍。
-
----
-
-## 技术说明
-
-首先感谢 **ChatGPT / OpenAI** 在开发过程中提供的技术支持。
-同时感谢 **NVIDIA 的 RAG 相关课程**，帮助我理解了检索增强生成的核心思想和实践流程。
-
-本章节将简要介绍系统的整体运行机制，包括从文档加载到最终答案生成的完整流程。
-部分内容为简化说明，如有疏漏，敬请指正。
-
----
-
-## 什么是 RAG？
-
-**检索增强生成（Retrieval-Augmented Generation, RAG）** 是一种结合了：
-
-* **信息检索（Retrieval）**
-* **大语言模型生成（Generation）**
-
-的技术方案。
-
-与传统只依赖模型参数知识的生成方式不同，RAG 的核心思想是：
-
-1. 先从文档中检索与问题相关的内容
-2. 将检索到的内容作为上下文
-3. 再由大语言模型基于这些证据生成答案
-
-这种方式可以有效降低模型幻觉，提高回答的**准确性与可信度**。
-
----
-
-## 系统架构概述
-
-系统整体采用模块化流水线设计，主要包括以下步骤：
-
-1. **文档加载（Document Loading）**
-
-   * 读取 PDF 文档并转换为结构化的 `Document` 对象
-
-2. **文本切分（Text Chunking）**
-
-   * 将文档切分为语义完整的文本块
-   * 保留页码、来源等元数据信息
-
-3. **向量化（Embedding）**
-
-   * 使用嵌入模型将文本块转换为向量表示
-
-4. **向量存储（Vector Store）**
-
-   * 使用 Chroma 存储向量数据
-
-5. **语义检索（Retrieval）**
-
-   * 基于相似度或 MMR 策略检索相关文本块
-
-6. **上下文构建（Context Construction）**
-
-   * 将检索结果整理为结构化上下文，并保留引用信息
-
-7. **答案生成（Generation）**
-
-   * 使用大语言模型基于检索证据生成最终答案
-
----
-
-## 核心技术栈
-
-系统主要使用以下技术组件：
-
-* **LangChain**
-  用于串联文档加载、向量化、检索与生成流程
-
-* **Chroma 向量数据库**
-  用于本地语义向量存储与检索
-
-* **HuggingFace Embeddings**
-  用于文本嵌入向量生成
-
-* **Ollama**
-  用于本地运行轻量级大语言模型（如 Qwen、Phi-3）
-
-* **Python 3.11**
-  系统主要开发语言
-
----
-
-## 设计理念
-
-本项目遵循以下核心设计原则：
-
-* **证据优先**
-  所有回答必须基于文档检索结果，而非模型自由发挥
-
-* **可追溯性**
-  每条回答都可以追溯到原始文档及对应页码
-
-* **模块化设计**
-  文档加载器、嵌入模型、向量库和大模型均可灵活替换
-
-* **可扩展性**
-  系统结构支持未来扩展新的文档格式和模型提供方
-
----
-
-## 当前限制
-
-* 当前仅支持 PDF 文档
-* 尚未提供图形化用户界面（CLI 形式）
-* 对文档结构（章节、表格）的理解仍较基础
-
-这些限制是当前阶段为了保持系统简洁和聚焦核心功能而有意保留的。
-
----
-
-## 未来规划
-
-后续计划包括但不限于：
-
-* 支持 **DOCX 等更多文档格式**
-* 更精细的文档结构解析（章节、标题、表格）
-* 多文档对比与综合分析
-* 更规范的引用与来源聚合机制
-* Web 图形界面支持
-* 接入云端大模型服务（如 OpenAI、DeepSeek、NVIDIA NIM）
-
----
-
+- 生成模型经 [Ollama](https://ollama.com/) 调用，模型权重遵循其各自许可（如 Qwen 系列遵循 Qwen License）。
+- 若用 AlphaGo / 强化学习相关论文作为测试语料，请注意其原文版权归属，仅作本地检索实验使用，不随本仓库分发。

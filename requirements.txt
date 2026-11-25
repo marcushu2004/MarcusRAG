@@ -1,0 +1,9 @@
+# Minimal runtime — pure Python, no torch required.
+# With these alone the pipeline runs end to end using embedder=hash + store=memory,
+# and full quality with chromadb + sentence-transformers (see requirements-full.txt).
+
+pypdf>=4.0.0
+PyYAML>=6.0
+
+# Optional but recommended: better chunk boundaries than the built-in fallback.
+langchain-text-splitters>=0.3.0
